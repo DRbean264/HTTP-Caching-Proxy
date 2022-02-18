@@ -16,4 +16,4 @@ CacheController.o: CacheController.cpp CacheController.hpp
 	g++ $(CPPFLAGS) -c CacheController.cpp
 
 .PHONY clean:
-	rm -f *~ *.o myserver
+	rm -f *~ *.o HTTPModule/*.o MyLog/*.o ProxyServer/*.o test

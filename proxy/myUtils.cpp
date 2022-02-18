@@ -41,7 +41,7 @@ struct tm getCurrentTime() {
     struct tm *timeinfo;
 
     time (&rawtime);
-    timeinfo = localtime(&rawtime);
+    timeinfo = gmtime(&rawtime);
     return *timeinfo;
 }
 

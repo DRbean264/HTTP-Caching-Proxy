@@ -92,12 +92,11 @@ void HTTPResponse::parse(const string &raw) {
 
     if (!checkHeaderFields())
         throw HTTPHeaderWrongFormat();
-    processHeaderFields();
+    // processHeaderFields();
     // reach the empty line
     // after it would be optional message
     // anything after the empty line would be the message body
     string messageBody;
-    // = raw.substr(pos + 2, raw.size() - pos - 2);
     
     // check if the message length exists
     const std::unordered_map<std::string, std::string> &hf = getHeaderFields();
@@ -115,8 +114,7 @@ void HTTPResponse::parse(const string &raw) {
     if (hf.find("content-length") != hf.cend()) {
         string lengths = hf.find("content-length")->second;
         unsigned long lengthd = strtoul(lengths.c_str(), NULL, 10);
-        // cout << "Message length: " << getMessage().size() << endl;
-        // cout << "Header content length: " << lengths << endl;
+        // the length should be identical
         assert(lengthd == getMessage().size());
     }
 }
