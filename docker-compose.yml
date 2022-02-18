@@ -1,0 +1,15 @@
+version: '2'
+
+services:
+  proxy:
+      build: ./proxy
+      command: bash -c "make && ./myserver"
+      ports:
+        - "12345:12345"
+      volumes:
+        - ./proxy:/myproxy
+        - ./logs:/var/log/erss
+      tty: true
+  
+volumes:
+   data-volume: 

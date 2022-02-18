@@ -1,0 +1,16 @@
+0: "CONNECT www.amazon.com:443 HTTP/1.1" from 98.26.33.93 @ Thu Feb 17 00:31:34 2022
+0: Responding "HTTP/1.1 200 OK"
+1: "CONNECT images-na.ssl-images-amazon.com:443 HTTP/1.1" from 98.26.33.93 @ Thu Feb 17 00:31:35 2022
+2: "CONNECT images-na.ssl-images-amazon.com:443 HTTP/1.1" from 98.26.33.93 @ Thu Feb 17 00:31:35 2022
+1: Responding "HTTP/1.1 200 OK"
+2: Responding "HTTP/1.1 200 OK"
+3: "CONNECT completion.amazon.com:443 HTTP/1.1" from 98.26.33.93 @ Thu Feb 17 00:31:35 2022
+3: Responding "HTTP/1.1 200 OK"
+4: "CONNECT fls-na.amazon.com:443 HTTP/1.1" from 98.26.33.93 @ Thu Feb 17 00:31:35 2022
+5: "CONNECT unagi.amazon.com:443 HTTP/1.1" from 98.26.33.93 @ Thu Feb 17 00:31:35 2022
+5: Responding "HTTP/1.1 200 OK"
+4: Responding "HTTP/1.1 200 OK"
+6: "CONNECT unagi-na.amazon.com:443 HTTP/1.1" from 98.26.33.93 @ Thu Feb 17 00:31:36 2022
+6: Responding "HTTP/1.1 200 OK"
+7: "CONNECT s.amazon-adsystem.com:443 HTTP/1.1" from 98.26.33.93 @ Thu Feb 17 00:31:37 2022
+7: Responding "HTTP/1.1 200 OK"
