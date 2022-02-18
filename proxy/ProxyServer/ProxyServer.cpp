@@ -395,42 +395,101 @@ void ProxyServer::processGETRequest(const HTTPRequest &req) {
     log.write(ss.str());
 }
 
+string ProxyServer::getResponseForRequest(HTTPRequest &request) {
+    // tcp connect to origin server
+    BaseSocket *sockAsClient = setUpAsClientSocket(request);
+
+    // make HTTP request & logging
+    stringstream ss = stringstream();
+    ss << request.getId() << ": Requesting \"" << request.firstLine() <<
+    "\" from " << request.getHostName();
+    log.write(ss.str());
+    string message = request.getRaw();
+    sendContent(sockAsClient->getSocketFd(), message);
+
+    // receive HTTP response, improve later with content length info!!!
+    cout << "Waiting for origin server's response...\n";
+    string resp = recvSocket_timeout(sockAsClient->getSocketFd(), 1);
+
+    // close the origin server connection
+    close(sockAsClient->getSocketFd());
+    delete sockAsClient;
+    return resp;
+}
+
+HTTPRequest ProxyServer::generateValidationRequest(const HTTPRequest &origreq, const HTTPResponse &response) {
+    unordered_map<string, string> ccf = response.cacheControlFields;
+    
+    // if neither etag nor last-modified exists
+    if (ccf.find(CacheControlKey::ck_etag) == ccf.cend() &&
+    ccf.find(CacheControlKey::ck_last_modified) == ccf.cend()) {
+        return origreq;
+    }
+    
+    stringstream ss;
+    ss << origreq.firstLine() << "\r\n";
+    // add all the original headers
+    for (auto &header : origreq.getHeaderFields()) {
+        ss << header.first << ": " << header.second << "\r\n";
+    }
+    // add other validation fields
+    if (ccf.find(CacheControlKey::ck_etag) != ccf.cend()) {
+        ss << "if-none-match: " << ccf[CacheControlKey::ck_etag] << "\r\n";
+    }
+    if (ccf.find(CacheControlKey::ck_last_modified) != ccf.cend()) {
+        ss << "if-modified-since: " << ccf[CacheControlKey::ck_last_modified] << "\r\n";
+    }
+    ss << "\r\n";
+    return HTTPRequest(origreq.getClientFd(), ss.str());
+} 
+
 void ProxyServer::requestAndRespond(HTTPRequest &request, bool cache, bool &keepConnection) {
     stringstream ss;
 
-    // check Cache with Cache api, implement later
-    // cache logic here
-    if (cache) {
-        // if there's the same URI in cache
-        if (cachecont.hasKey(request.getURI())) {
-
-        } else {
-            ss << request.getId() << ": not in cache";
-            log.write(ss.str());
-        }
-    }
+    // request.display();
 
     // if no error
     if (request.getErrorCode() == 0) {
-        // tcp connect to origin server
-        BaseSocket *sockAsClient = setUpAsClientSocket(request);
+        string resp;
 
-        // make HTTP request & logging
-        ss = stringstream();
-        ss << request.getId() << ": Requesting \"" << request.firstLine() <<
-        "\" from " << request.getHostName();
-        log.write(ss.str());
-        string message = request.getRaw();
-        sendContent(sockAsClient->getSocketFd(), message);
-
-        // receive HTTP response, improve later with content length info!!!
-        cout << "Waiting for origin server's response...\n";
-        string resp = recvSocket_timeout(sockAsClient->getSocketFd(), 1);
+        // check Cache with Cache api
+        // cache logic here
+        if (cache) {
+            // if there's the same URI in cache
+            if (cachecont.hasKey(request.getURI())) {
+                cout << "In cache!!!" << endl;
+                HTTPResponse response = cachecont.get(request.getURI()).first;
+                // if the response is still fresh, send it right back
+                if (cachecont.hasValidKey(request.getURI())) {
+                    cout << "still valid!!!\n";
+                    sendContent(request.getClientFd(), response.getRaw());
+                    keepConnection = true;
+                    return;
+                } 
+                // if the response expired
+                else {
+                    // generate re-validation request from the response in cache
+                    HTTPRequest req = generateValidationRequest(request, response);
+                    cout << "debugging...\n";
+                    cout << "Generated Validation Request:\n";
+                    req.display();
+                    cout << "debugging...\n";
+                    resp = getResponseForRequest(req);
+                }
+            } else {
+                ss << request.getId() << ": not in cache";
+                log.write(ss.str());
+                resp = getResponseForRequest(request);
+            }
+        } else {
+            resp = getResponseForRequest(request);
+        }
 
         // parse the response
         HTTPResponse response;
         try {
             response = HTTPResponse(resp, request.getId());
+            // response.display();
 
             if (cache) {
                 // cache logic here
@@ -460,7 +519,7 @@ void ProxyServer::requestAndRespond(HTTPRequest &request, bool cache, bool &keep
                         result.second;
                         log.write(ss.str());
                     }
-                }
+                } 
             }
             //request.display();
             //response.display();
@@ -472,6 +531,12 @@ void ProxyServer::requestAndRespond(HTTPRequest &request, bool cache, bool &keep
             log.write(ss.str());
 
             // send back the response to client
+            if (response.getStatusCode() == "304") {
+                // if the response is for us, proxy server
+                if (cachecont.hasKey(request.getURI())) {
+                    response = cachecont.get(request.getURI()).first;
+                }
+            }
             ss = stringstream();
             ss << request.getId() << ": Responding \"" << response.firstLine() << "\"";
             log.write(ss.str());
@@ -486,9 +551,6 @@ void ProxyServer::requestAndRespond(HTTPRequest &request, bool cache, bool &keep
             sendContent(request.getClientFd(), HTTPResponse(Bad502, 0).getRaw());
         }
 
-        // close the connection
-        close(sockAsClient->getSocketFd());
-        delete sockAsClient;
         keepConnection = true;
     } 
     // if client side closed the connection, proxy close the connection

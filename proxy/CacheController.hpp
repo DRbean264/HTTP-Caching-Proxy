@@ -1,6 +1,6 @@
 #ifndef __CACHE_CONTROLLER__
 #define __CACHE_CONTROLLER__
-#include "cache_synchronized.hpp"
+#include "Cache/cache_synchronized.h"
 #include "HTTPModule/HTTPResponse.hpp"
 #include "HTTPModule/HTTPRequest.hpp"
 #include "HTTPModule/HTTPBase.hpp"

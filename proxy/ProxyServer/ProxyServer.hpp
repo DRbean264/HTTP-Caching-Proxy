@@ -29,7 +29,8 @@ public:
     void sendContent(int fd, std::string message);
     void exchangeContent(int client_fd, int server_fd);
     void requestAndRespond(HTTPRequest &request, bool cache, bool &keepConnection);
-    // std::string receiveContent(int fd);
+    std::string getResponseForRequest(HTTPRequest &request);
+    HTTPRequest generateValidationRequest(const HTTPRequest &origreq, const HTTPResponse &response);
     std::string getIpFromSocket(int socket_fd) const;
 
     void processGETRequest(const HTTPRequest &);

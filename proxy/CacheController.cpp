@@ -1,5 +1,4 @@
 #include "CacheController.hpp"
-#include "cache_synchronized.hpp"
 #include "HTTPModule/HTTPResponse.hpp"
 #include "HTTPModule/HTTPRequest.hpp"
 #include "HTTPModule/HTTPBase.hpp"
@@ -55,7 +54,7 @@ std::pair<HTTPResponse, int> CacheController::get(std::string key){
 bool CacheController::hasValidKey(std::string key){
     if(!ca->has_key(key)) return false;
     std::pair<HTTPResponse, bool> res = ca->get(key);
-    return res.second;
+    return !res.second;
 }
 
 std::pair<bool, reasonStr> CacheController::set(std::string uri, HTTPResponse &resp){
@@ -92,7 +91,7 @@ bool CacheController::isMustRevalidate(HTTPBase &req){
     // }
     return ((req.cacheControlFields.find(CacheControlKey::ck_no_cache) != req.cacheControlFields.cend()) ||
             (req.cacheControlFields.find(CacheControlKey::ck_max_age) != req.cacheControlFields.cend() && req.cacheControlFields[CacheControlKey::ck_max_age] == "0")||
-            (req.cacheControlFields.find(CacheControlKey::ck_etag) != req.cacheControlFields.cend())||
+            // (req.cacheControlFields.find(CacheControlKey::ck_etag) != req.cacheControlFields.cend())||
             (req.cacheControlFields.find(CacheControlKey::ck_must_revalidate) != req.cacheControlFields.cend()) ||
             (req.cacheControlFields.find(CacheControlKey::ck_proxy_revalidate) != req.cacheControlFields.cend()) 
             );
@@ -153,8 +152,8 @@ std::pair<bool, reasonStr> CacheController::parseCacheControlFields(HTTPBase &ba
      && hf.find(CacheControlKey::ck_etag) == hf.cend()){
         //base.cacheControlFields[CacheControlKey.ck_cacheable] = CK_VALUE_FALSE;
         // base.cacheControlFields[CacheControlKey.ck_reason] = "lack of cache-control field";
-        addCacheableToDict(base, false, "lack of cache-control field");
-        return std::make_pair(false, "lack of cache-control field");
+        addCacheableToDict(base, false, "lack of any cache-control field");
+        return std::make_pair(false, "lack of any cache-control field");
     }
     if(hf.find(CacheControlKey::ck_etag) != hf.cend()){
         handleEtag(base);
