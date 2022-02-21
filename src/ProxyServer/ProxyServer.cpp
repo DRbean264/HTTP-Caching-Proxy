@@ -626,8 +626,8 @@ void ProxyServer::exchangeContent(int client_fd, int server_fd) {
         readSet = init;
         status = select(FD_MAX, &readSet, NULL, NULL, NULL);
         if (status == -1) {
-            cerr << "Select function failed.\n";
-            exit(EXIT_FAILURE);
+            errLog.write("Select function failed during handling connect method.");
+            return;
         }
         if (status > 0) {
             if (FD_ISSET(client_fd, &readSet)) {
@@ -665,6 +665,7 @@ void ProxyServer::sendContent(int fd, std::string message) {
 }
 
 // set up the socket to comunicate with the origin server
+// return NULL if fails
 BaseSocket *ProxyServer::setUpAsClientSocket(const HTTPRequest &request) {
      // get address information for host
     struct addrinfo host_info;
@@ -688,8 +689,8 @@ BaseSocket *ProxyServer::setUpAsClientSocket(const HTTPRequest &request) {
                     &host_info, &host_info_list_temp);
     if (status == -1) {
         freeaddrinfo(host_info_list_temp);
-        cerr << "Can not get address info for host\n";
-        exit(EXIT_FAILURE);
+        errLog.write("Can not get address info for host");
+        return NULL;
     }
 
     // create asClient socket

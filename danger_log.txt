@@ -1,20 +1,20 @@
-1. Http format validation: If we receive a bad request or response(Not consistent with HTTP format), we will check our receive message and handle it:
+1. Http format validation: If we receive a bad request or response (Not consistent with HTTP format), we will check our receive message and handle it:
 We parse HTTP request and response by our parser, in order to handle bad request, we define 
 HTTP request: 
-    check version(should be in format"HTTP/[0-9].[0-9]")
+    check version(should be in format"HTTP/[0-9](.[0-9])")
     check uri(should be valid uri)
     check port(number and should be in range(0~65535)) 
-    check method(only allow GET/POST/CONNECT)
+    check method(only GET/POST/CONNECT are supported right now; upon receiving the other methods, status code 405 would be returned to client)
 HTTP response:
-    check version (should be in format"HTTP/[0-9].[0-9]")
+    check version (should be in format"HTTP/[0-9](.[0-9])")
     check status code (should be in format [0-5][0-9][0-9])
-    check header(header should contain certain keys(such as content-length) and can be parse into dictionary)
+    check header(e.g. the content-length and transfer-encoding header field should not appear at the same time; the header can be parse into dictionary)
 if the format is not valid, throw exceptions and set error code in object therefore we can skip the packet without wasting time to forward or send it
 
 2. RAII and maintaining strong exception safety
     we use try-catch to deal with network problem and other exception, and if some important process can't coninue, we will simple skip this request and release the resourses we allocate
 
-3. Proxy Performance: When multiple requests come in a short time, we have to ability to handle them
+3. Proxy Performance: When multiple requests come in a short time, we have the ability to handle them
     We use multi-thread to process different requests, but it takes risk of running out resourses of our machine
     We also build a thread pool to elastic create and kill thread within a range number(min, max) based on the number of current tasks in task queue, which will save cpu resourses and memory effectly
 
@@ -22,14 +22,14 @@ if the format is not valid, throw exceptions and set error code in object theref
 Our Critical Section and Solution:
     request id generation: mutex lock
     log writing in order: mutex lock
-    Cache inserting, seraching and updating: read-write lock
+    Cache inserting, searching and updating: read-write lock
 Lock Granularity:
 Some components have saperated reading and updating process, therefore it will be much faster when using read-write lock, but because the data structure of our cache is LRU, which has very small isolation section between read and update, which means maybe it is unnecessary to split the lock into two different kinds of lock, which also causes some waste of resourses because maintain read-write lock also need to maintain an inner lock inside this data structure.
-But I have seen some open sources which use read-write lock in LRU cache, such as database in Facebook: https://github.com/facebook/hhvm/blob/246d025ce6004c09363e89ad91955050c1aeda62/hphp/util/concurrent-lru-cache.h#L29
-So it is a intersting discuss for me, and I will continue researching it based on this project.
+But we have seen some open sources which use read-write lock in LRU cache, such as database in Facebook: https://github.com/facebook/hhvm/blob/246d025ce6004c09363e89ad91955050c1aeda62/hphp/util/concurrent-lru-cache.h#L29
+So it is a interesting discuss for me, and we will continue researching it based on this project.
 Also, C++11 don't have a very good read-write lock stl, which causes read-write lock has worse performance than simple mutex lock in C++11, but in C++17,official gives out a high performance implemented read-write lock.
 
-5. Cache Control: We need to take care about the replacement policy and searching algorithm, which related to the performance of our cache, but also we need to taking care about the speical feature of proxy cache, because expired response in proxy cache is reusable.
+5. Cache Control: We need to take care of the replacement policy and searching algorithm, which related to the performance of our cache, but also we need to taking care about the speical feature of proxy cache, because expired response in proxy cache is reusable.
 Our solution:
     We maintain a double linked list and map to implement LRU algorithm, which allows us to search, delete, insert item in O(1) time complexity.
     And the algorithm will replace the prolonged unused data. Also, we maintian a thread to check data periodly. If the removement of tail node happens frequently, which means currently more new response store into cache, the clients enter a new website with different uri/host is in high possiblity, therefore the thread will start cleaning expired cache.
@@ -38,3 +38,11 @@ Our solution:
     When we find the data related to specific uri(key), we always replace the original request by our generating asking request and forward to origin server, therefore if the resourse is still valid, origin server can simply send a 304 to reply us without body information, which will save time.
 
 7. Alive Connection: When the header maintain a "connection:keep-alive", we need to get ready to accept long data request and always check if the client stop the connection
+
+8. The keys of the header fields in both HTTP responses and requests are case-insensitive; the directives of cache-control fields are also case-insensitive
+    We convert all the header fields' keys and cache control directives into lower case.
+
+9. The file descripter of socket should always be closed before threads exit.
+
+10. As for running a daemon in docker, if the first program running is our server daemon, then we should ensure it's pid is not equal to 1 (namely, as the init process) before we carry out the daemonization.
+    If the pid is 1, then we fork the process and put an infinite loop in the parent process, while making the child process the real caching proxy
