@@ -207,7 +207,7 @@ void ProxyServer::processRequest(int client_connection_fd) {
 
 void ProxyServer::setup(struct addrinfo host_info) {
     // daemonize the server
-    // daemonize();
+    daemonize();
 
     // get address information for host
     struct addrinfo *host_info_list_temp;
@@ -335,6 +335,9 @@ void ProxyServer::processCONNECTRequest(const HTTPRequest &request) {
     // HTTPResponse response;
     // tcp connect to origin server
     BaseSocket *sockAsClient = setUpAsClientSocket(request);
+    if (sockAsClient == NULL) {
+        return;
+    }
 
     // send 200 ok to client
     stringstream ss1;
@@ -398,6 +401,9 @@ void ProxyServer::processGETRequest(const HTTPRequest &req) {
 string ProxyServer::getResponseForRequest(HTTPRequest &request) {
     // tcp connect to origin server
     BaseSocket *sockAsClient = setUpAsClientSocket(request);
+    if (sockAsClient == NULL) {
+        return string();
+    }
 
     // make HTTP request & logging
     stringstream ss = stringstream();
@@ -426,7 +432,11 @@ HTTPRequest ProxyServer::generateValidationRequest(const HTTPRequest &origreq, c
         return origreq;
     }
     
-    stringstream ss;
+    stringstream ss = stringstream();
+    ss << origreq.getId() << ": in cache, requires validation";
+    log.write(ss.str());
+
+    ss = stringstream();
     ss << origreq.firstLine() << "\r\n";
     // add all the original headers
     for (auto &header : origreq.getHeaderFields()) {
@@ -446,8 +456,6 @@ HTTPRequest ProxyServer::generateValidationRequest(const HTTPRequest &origreq, c
 void ProxyServer::requestAndRespond(HTTPRequest &request, bool cache, bool &keepConnection) {
     stringstream ss;
 
-    // request.display();
-
     // if no error
     if (request.getErrorCode() == 0) {
         string resp;
@@ -457,23 +465,29 @@ void ProxyServer::requestAndRespond(HTTPRequest &request, bool cache, bool &keep
         if (cache) {
             // if there's the same URI in cache
             if (cachecont.hasKey(request.getURI())) {
-                cout << "In cache!!!" << endl;
+                // cout << "In cache!!!" << endl;
                 HTTPResponse response = cachecont.get(request.getURI()).first;
                 // if the response is still fresh, send it right back
+                // ID: in cache, requires validation
                 if (cachecont.hasValidKey(request.getURI())) {
-                    cout << "still valid!!!\n";
+                    ss = stringstream();
+                    ss << request.getId() << ": in cache, valid";
+                    log.write(ss.str());  
                     sendContent(request.getClientFd(), response.getRaw());
                     keepConnection = true;
                     return;
                 } 
                 // if the response expired
                 else {
+                    pair<HTTPResponse, int> cacheEntry = cachecont.get(request.getURI());
+                    ss = stringstream();
+                    ss << request.getId() << ": in cache, but expired at " << time_tToASC(cacheEntry.second);
+                    assert(cacheEntry.second != -1);
+                    log.write(ss.str());  
                     // generate re-validation request from the response in cache
                     HTTPRequest req = generateValidationRequest(request, response);
-                    cout << "debugging...\n";
                     cout << "Generated Validation Request:\n";
                     req.display();
-                    cout << "debugging...\n";
                     resp = getResponseForRequest(req);
                 }
             } else {
@@ -495,6 +509,19 @@ void ProxyServer::requestAndRespond(HTTPRequest &request, bool cache, bool &keep
                 // cache logic here
                 // if is 200 OK, then check cache status and log
                 if (response.getStatusCode() == "200") {
+                    const unordered_map<string, string> &hf = response.getHeaderFields();
+                    // if there's cache control field
+                    if (hf.find("cache-control") != hf.cend()) {
+                        ss = stringstream();
+                        ss << request.getId() << ": NOTE Cache Control: " << hf.at("cache-control");
+                        log.write(ss.str());
+                    }
+                    if (hf.find("etag") != hf.cend()) {
+                        ss = stringstream();
+                        ss << request.getId() << ": NOTE Etag: " << hf.at("etag");
+                        log.write(ss.str());
+                    }
+
                     // update the cache
                     pair<bool, reasonStr> result = cachecont.set(request.getURI(), response);
                     // if update successfully
@@ -504,13 +531,13 @@ void ProxyServer::requestAndRespond(HTTPRequest &request, bool cache, bool &keep
                         ss = stringstream();
                         ss << request.getId() << ": cached, expires at " << time_tToASC(cacheEntry.second);
                         assert(cacheEntry.second != -1);
-                        log.write(ss.str());   
+                        log.write(ss.str());
                         // log the re-validation info
                         if (cachecont.isMustRevalidate(response)) {
                             ss = stringstream();
                             ss << request.getId() << ": cached, but requires re-validation";
                             log.write(ss.str());
-                        }                    
+                        }
                     } 
                     // if not update successfully, log the reason
                     else {
@@ -674,15 +701,15 @@ BaseSocket *ProxyServer::setUpAsClientSocket(const HTTPRequest &request) {
     }
     catch(const std::exception& e) {
         freeaddrinfo(host_info_list_temp);
-        cerr << "Can not create socket\n";
-        exit(EXIT_FAILURE);
+        errLog.write("Can not create socket");
+        return NULL;
     }
 
     cout << "Connecting to " << hostname << " on port " << port << "..." << endl;
     status = connect(sockAsClient->getSocketFd(), host_info_list_temp->ai_addr, host_info_list_temp->ai_addrlen);
     if (status == -1) {
-        cerr << "Error: cannot connect to socket" << endl;
-        exit(EXIT_FAILURE);
+        errLog.write("Error: cannot connect to socket");
+        return NULL;
     } //if
     freeaddrinfo(host_info_list_temp);
     cout << "Setup connection with origin server!!!\n";

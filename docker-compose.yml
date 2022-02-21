@@ -9,7 +9,7 @@ services:
       volumes:
         - ./proxy:/myproxy
         - ./logs:/var/log/erss
-      tty: true
+      # tty: true
   
 volumes:
    data-volume: 
