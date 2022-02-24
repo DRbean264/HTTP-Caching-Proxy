@@ -9,4 +9,3 @@ WORKDIR /myproxy
 ADD . /myproxy/
 RUN ls /myproxy
 RUN make
-RUN chmod +x ./run_proxy.sh
