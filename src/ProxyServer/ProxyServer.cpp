@@ -207,7 +207,7 @@ void ProxyServer::processRequest(int client_connection_fd) {
 
 void ProxyServer::setup(struct addrinfo host_info) {
     // daemonize the server
-    daemonize();
+    // daemonize();
 
     // get address information for host
     struct addrinfo *host_info_list_temp;
@@ -359,6 +359,7 @@ void ProxyServer::processCONNECTRequest(const HTTPRequest &request) {
 void ProxyServer::processGETRequest(const HTTPRequest &req) {
     // default copy constructor, will not consume a new request ID
     HTTPRequest request = req;
+    request.display();
     while (1) {
         // default, close the connection
         bool keepConnection = true;
